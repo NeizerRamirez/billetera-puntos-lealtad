@@ -113,7 +113,6 @@ OPCIONES = {
     "5": ("Canjear premio", _canjearPremio),
     "6": ("Consultar nivel", _consultarNivel),
     "7": ("Consultar historial", _consultarHistorial),
-    "0": ("Salir", None)
 }
 
 
@@ -124,6 +123,7 @@ def ejecutar():
         print("\n=== Bienvenido al Programa de Lealtad ===")
         for clave, (titulo, _) in OPCIONES.items():
             print(f"{clave}. {titulo}")
+        #Se pone el 0 en este nivel para no afectar la ejecución de las opciones
         print("0. Salir")
 
         try:
