@@ -8,9 +8,6 @@ from decimal import Decimal
 #Se define 1 punto por cada 10 u.m.
 puntosUnidad = Decimal("10")
 
-#Se define el multiplicador base para los clientes de nivel bronce
-multiplicadorBase = Decimal("1.00")
-
 #Se tiene el stock inicial de los premios para poder probar el uso de la billetera
 stockInicial = 10
 

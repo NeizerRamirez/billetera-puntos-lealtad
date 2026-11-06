@@ -1,6 +1,7 @@
 import pytest
-from src.lealtad.errores import ErroresBilletera, clienteDuplicado, fechaInvalida, datosInvalidos, clienteNoEncontrado, montoInvalido
+from src.lealtad.errores import ErroresBilletera, clienteDuplicado, fechaInvalida, datosInvalidos, clienteNoEncontrado, montoInvalido, premioNoEncontrado, premioSinStock, saldoInsuficiente
 from src.lealtad.programa import ProgramaLealtad
+from src.lealtad.config import stockInicial
 
 
 def testCrearClienteDuplicado():
@@ -111,3 +112,144 @@ def testCompraFallidaNoCambiaNada():
     assert p.consultarSaldo("C001") == 50
     # el id no se "gastó" en la compra fallida
     assert p.registrarCompra("C001", "100.00", "11-01-2026")["idCompra"] == "C-2"
+
+
+def _programaConSaldo173():
+    p = _programaConClienteAna()
+    p.registrarCompra("C001", "500.00", "10-01-2026")
+    p.registrarCompra("C001", "1234.50", "11-01-2026")
+    return p
+
+
+def testCanjeExitoso():
+    p = _programaConSaldo173()
+    r = p.canjearPremio("C001", "P01", "15-01-2026")
+    assert (r["puntosDescontados"], r["saldo"]) == (100, 73)
+
+
+def testCanjeSaldoInsuficienteNoCambiaNada():
+    p = _programaConSaldo173()
+    p.canjearPremio("C001", "P01", "15-01-2026")
+    with pytest.raises(ErroresBilletera) as e:
+        p.canjearPremio("C001", "P02", "15-01-2026")
+    assert e.value.codigo == saldoInsuficiente
+    assert p.consultarSaldo("C001") == 73
+    assert p._catalogo["P02"].stock == stockInicial   # el stock tampoco cambió
+
+
+def testPremioInexistente():
+    p = _programaConSaldo173()
+    with pytest.raises(ErroresBilletera) as e:
+        p.canjearPremio("C001", "P99", "15-01-2026")
+    assert e.value.codigo == premioNoEncontrado
+
+
+def testSinStockSeValidaAntesQueSaldo():
+    p = _programaConClienteAna()            # saldo 0
+    p._catalogo["P01"].stock = 0
+    with pytest.raises(ErroresBilletera) as e:
+        p.canjearPremio("C001", "P01", "15-01-2026")
+    assert e.value.codigo == premioSinStock   # no saldoInsuficiente
+
+def testCanjeConFechaAnteriorALaUltimaOperacion():
+    p = _programaConSaldo173()              # última operación: 11-01-2026
+    with pytest.raises(ErroresBilletera) as e:
+        p.canjearPremio("C001", "P01", "05-01-2026")
+    assert e.value.codigo == fechaInvalida
+    assert p.consultarSaldo("C001") == 173  # no cambió nada
+
+
+from datetime import date
+
+def test_prueba4_historial_completo():
+    p = ProgramaLealtad()
+    p.crearCliente("C001", "Jorge Mora", "jorge@correo.com", "01-03-2026")
+    p.registrarCompra("C001", "80000.00", "02-03-2026")
+    p.canjearPremio("C001", "P05", "03-03-2026")
+    p.canjearPremio("C001", "P05", "04-03-2026")
+    with pytest.raises(ErroresBilletera) as e:
+        p.canjearPremio("C001", "P05", "05-03-2026")
+    assert e.value.codigo == saldoInsuficiente
+
+    h = p.consultarHistorial("C001")
+    assert [(m["tipo"], m["puntos"], m["fecha"], m["referencia"]) for m in h] == [
+        ("ACUMULACION", 8000, date(2026, 3, 2), "C-1"),
+        ("CANJE", -4000, date(2026, 3, 3), "P05"),
+        ("CANJE", -4000, date(2026, 3, 4), "P05"),
+    ]
+    assert sum(m["puntos"] for m in h) == p.consultarSaldo("C001") == 0
+
+
+def test_prueba5_operaciones_fallidas_no_dejan_rastro():
+    p = ProgramaLealtad()
+    p.crearCliente("C001", "Sofía Rojas", "sofia@correo.com", "01-03-2026")
+    p.registrarCompra("C001", "200.00", "10-03-2026")
+    for fecha in ("05-03-2026", "30-02-2026"):
+        with pytest.raises(ErroresBilletera) as e:
+            p.registrarCompra("C001", "100.00", fecha)
+        assert e.value.codigo == fechaInvalida
+    h = p.consultarHistorial("C001")
+    assert len(h) == 1 and (h[0]["puntos"], h[0]["referencia"]) == (20, "C-1")
+    assert p.consultarSaldo("C001") == 20
+
+
+def test_historial_devuelve_copia_y_no_altera_el_estado():
+    p = ProgramaLealtad()
+    p.crearCliente("C001", "Ana", "ana@correo.com", "05-01-2026")
+    p.registrarCompra("C001", "500.00", "10-01-2026")
+    p.consultarHistorial("C001").clear()             # intento de alterar la copia
+    assert len(p.consultarHistorial("C001")) == 1
+
+
+def test_historial_cliente_inexistente():
+    with pytest.raises(ErroresBilletera) as e:
+        ProgramaLealtad().consultarHistorial("C999")
+    assert e.value.codigo == clienteNoEncontrado
+
+
+from datetime import date
+
+def test_prueba4_historial_completo():
+    p = ProgramaLealtad()
+    p.crearCliente("C001", "Jorge Mora", "jorge@correo.com", "01-03-2026")
+    p.registrarCompra("C001", "80000.00", "02-03-2026")
+    p.canjearPremio("C001", "P05", "03-03-2026")
+    p.canjearPremio("C001", "P05", "04-03-2026")
+    with pytest.raises(ErroresBilletera) as e:
+        p.canjearPremio("C001", "P05", "05-03-2026")
+    assert e.value.codigo == saldoInsuficiente
+
+    h = p.consultarHistorial("C001")
+    assert [(m["tipo"], m["puntos"], m["fecha"], m["idReferencia"]) for m in h] == [
+        ("ACUMULACION", 8000, date(2026, 3, 2), "C-1"),
+        ("CANJE", -4000, date(2026, 3, 3), "P05"),
+        ("CANJE", -4000, date(2026, 3, 4), "P05"),
+    ]
+    assert sum(m["puntos"] for m in h) == p.consultarSaldo("C001") == 0
+
+
+def test_prueba5_operaciones_fallidas_no_dejan_rastro():
+    p = ProgramaLealtad()
+    p.crearCliente("C001", "Sofía Rojas", "sofia@correo.com", "01-03-2026")
+    p.registrarCompra("C001", "200.00", "10-03-2026")
+    for fecha in ("05-03-2026", "30-02-2026"):
+        with pytest.raises(ErroresBilletera) as e:
+            p.registrarCompra("C001", "100.00", fecha)
+        assert e.value.codigo == fechaInvalida
+    h = p.consultarHistorial("C001")
+    assert len(h) == 1 and (h[0]["puntos"], h[0]["idReferencia"]) == (20, "C-1")
+    assert p.consultarSaldo("C001") == 20
+
+
+def test_historial_devuelve_copia_y_no_altera_el_estado():
+    p = ProgramaLealtad()
+    p.crearCliente("C001", "Ana", "ana@correo.com", "05-01-2026")
+    p.registrarCompra("C001", "500.00", "10-01-2026")
+    p.consultarHistorial("C001").clear()             # intento de alterar la copia
+    assert len(p.consultarHistorial("C001")) == 1
+
+
+def test_historial_cliente_inexistente():
+    with pytest.raises(ErroresBilletera) as e:
+        ProgramaLealtad().consultarHistorial("C999")
+    assert e.value.codigo == clienteNoEncontrado

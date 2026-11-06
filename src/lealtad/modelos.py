@@ -3,6 +3,16 @@ from datetime import date
 from decimal import Decimal
 
 @dataclass
+class Movimiento:
+    tipo: str
+    puntos: int
+    fecha: date
+    idReferencia: str
+
+tipoAcumulacion = "ACUMULACION"
+tipoCanje = "CANJE"
+
+@dataclass
 class Cliente:
     idCliente: str
     nombre: str
@@ -13,7 +23,7 @@ class Cliente:
     
     """Se usa default_factory=list para crear una lista por cada cliente creado 
      y no compartir la misma lista entre todos los clientes."""
-    historialCompras: list = field(default_factory=list)
+    historial: list[Movimiento] = field(default_factory=list)
 
 @dataclass
 class Premio:
@@ -29,3 +39,5 @@ class Compra:
     fecha: date
     monto: Decimal
     puntosOtorgados: int
+
+

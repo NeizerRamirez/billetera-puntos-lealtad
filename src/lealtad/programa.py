@@ -1,6 +1,6 @@
-from src.lealtad.modelos import Cliente, Premio, Compra
-from src.lealtad.errores import ErroresBilletera, clienteDuplicado, datosInvalidos, fechaInvalida, clienteNoEncontrado, montoInvalido
-from src.lealtad.config import CATALOGO, stockInicial, puntosUnidad, multiplicadorBase
+from src.lealtad.modelos import Cliente, Premio, Compra, Movimiento, tipoAcumulacion, tipoCanje
+from src.lealtad.errores import ErroresBilletera, clienteDuplicado, datosInvalidos, fechaInvalida, clienteNoEncontrado, montoInvalido, premioNoEncontrado, premioSinStock, saldoInsuficiente
+from src.lealtad.config import CATALOGO, stockInicial, puntosUnidad, NIVELES
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import math
@@ -104,8 +104,20 @@ class ProgramaLealtad:
             raise ErroresBilletera(codigo=montoInvalido, mensaje="Monto no positivo o con más de 2 decimales")
         return valor
 
+    def _nivelPara(self, puntosAcumulados: int) -> tuple[str, Decimal]:
+        """Recorre NIVELES (de mayor a menor) y retorna (nombre_nivel, multiplicador).#########################################################
+
+        Como Bronce pide 0 puntos, siempre devolverá al menos Bronce.
+        """
+        for nombre, minimo, multiplicador in NIVELES:
+            if puntosAcumulados >= minimo:
+                return nombre, multiplicador
+        #Se retorna como indices para no dar datos de la estructura
+        return NIVELES[-1][0], NIVELES[-1][2]
+
     # Función para calcular los puntos ganados en una compra
-    def _calcularPuntos(self, monto: Decimal, multiplicador: Decimal = multiplicadorBase) -> int:
+    def _calcularPuntos(self, monto: Decimal, multiplicador: Decimal) -> int:
+        ## Se calcula la cantidad de puntos ganados redondeando hacia abajo
         return math.floor(monto / puntosUnidad * multiplicador)
 
     
@@ -122,11 +134,14 @@ class ProgramaLealtad:
         #Validar fecha (orden cronológico sin alterar estado)
         fecha = self._validarFecha(fechaStr)
 
+        # Determinar nivel y multiplicador del cliente
+        nivel, multiplicador = self._nivelPara(cliente.puntosAcumulados)
+
+        # Calcular puntos a otorgar aplicando el multiplicador
+        puntosOtorgados = self._calcularPuntos(monto, multiplicador)
+
         #Generar Id para la compra usando el contador actual
         idCompra = f"C-{self._contadorCompras + 1}"
-
-        # Calcular puntos ganados 
-        puntosOtorgados = self._calcularPuntos(monto)
 
         nuevaCompra = Compra(
             idCompra=idCompra,
@@ -142,13 +157,129 @@ class ProgramaLealtad:
         cliente.saldo += puntosOtorgados
         cliente.puntosAcumulados += puntosOtorgados
 
+        # Se registra en el historial solo si otorgó más de 0 puntos
+        if puntosOtorgados > 0:
+            cliente.historial.append(
+                Movimiento(
+                    tipo=tipoAcumulacion,
+                    puntos=puntosOtorgados, 
+                    fecha=fecha,
+                    idReferencia=idCompra,
+                )
+            )
+
         self._compras[idCompra] = nuevaCompra
         self._ultimaFechaSistema = fecha
 
         # incremento del contador 
         self._contadorCompras += 1
 
-        return {"idCompra": idCompra, "puntos": puntosOtorgados, "saldo": cliente.saldo}
+        return {"idCompra": idCompra, "puntos": puntosOtorgados, "saldo": cliente.saldo, "nivel": nivel, "multiplicador": multiplicador }
+
+    #------------Función para canjear premios----------------
+    def canjearPremio(self, idCliente: str, idPremio: str, fechaStr: str) -> dict:
+
+        # Validar Cliente (lanza clienteNoExiste si no existe)
+        cliente = self._obtenerCliente(idCliente)
+
+        # Validar Fecha (lanza fechaInvalida si la fecha es mala o anterior)
+        fecha = self._validarFecha(fechaStr)
+
+        # Validar Premio Inexistente
+        if idPremio not in self._catalogo:
+            raise ErroresBilletera(
+                codigo=premioNoEncontrado,
+                mensaje=f"El premio '{idPremio}' no existe en el catálogo."
+            )
+        premio = self._catalogo[idPremio]
+
+        # Validar Sin Stock (va antes que saldo insuficiente)
+        if premio.stock <= 0:
+            raise ErroresBilletera(
+                codigo=premioSinStock,
+                mensaje=f"El premio '{premio.nombre}' no tiene stock disponible."
+            )
+
+        # Validar Saldo 
+        if cliente.saldo < premio.costo:
+            raise ErroresBilletera(
+                codigo=saldoInsuficiente,
+                mensaje=f"Saldo insuficiente ({cliente.saldo}) para canjear '{premio.nombre}' (Costo: {premio.costo})."
+            )
+
+
+        # Descontar el costo del saldo del cliente
+        cliente.saldo -= premio.costo
+        
+        # Reducir el stock del premio
+        premio.stock -= 1
+
+        # Registrar movimiento en el historial (puntos negativos)
+        cliente.historial.append(
+            Movimiento(
+                tipo=tipoCanje,
+                puntos=-premio.costo,  # Negativo
+                fecha=fecha,
+                idReferencia=idPremio,
+            )
+        )
+
+        # Actualizar la fecha del sistema (último paso)
+        self._ultimaFechaSistema = fecha
+
+        return {
+            "puntosDescontados": premio.costo,
+            "saldo": cliente.saldo
+        }
+
+    def consultarHistorial(self, idCliente: str) -> list[dict]:
+        """Devuelve una copia del historial de movimientos del cliente."""
+        cliente = self._obtenerCliente(idCliente)
+
+        return [
+            {
+                "tipo": mov.tipo,
+                "puntos": mov.puntos,
+                "fecha": mov.fecha,
+                "idReferencia": mov.idReferencia,
+            }
+            for mov in cliente.historial
+        ]
+
+
+    #------------Funcion para consultar el nivel del cliente----------
+    def consultarNivel(self, idCliente: str) -> dict:
+        """Devuelve un diccionario con el nivel actual, puntos acumulados
+
+        y los puntos que le faltan para el siguiente nivel.
+        Si ya es Oro, el campo 'puntosFaltantes' es None.
+        """
+        # 1. Obtener cliente (lanza clienteNoExiste si no está registrado)
+        cliente = self._obtenerCliente(idCliente)
+        pts = cliente.puntosAcumulados
+
+        # 2. Determinar el nivel actual y su posición en la lista NIVELES
+        nivelActual, _ = self._nivelPara(pts)
+
+        # Buscar el índice del nivel actual en NIVELES
+        idxActual = next(
+            i for i, (nombre, _, _) in enumerate(NIVELES) if nombre == nivelActual
+        )
+
+        # 3. Determinar los puntos faltantes para el siguiente nivel
+        if idxActual == 0:
+            # Es Oro (el nivel máximo)
+            puntosFaltantes = None
+        else:
+            # El siguiente nivel es la fila superior (índice anterior)
+            _, ptsSiguienteMinimo, _ = NIVELES[idxActual - 1]
+            puntosFaltantes = ptsSiguienteMinimo - pts
+
+        return {
+            "nivel": nivelActual,
+            "puntosAcumulados": pts,
+            "puntosFaltantes": puntosFaltantes,
+        }
 
 
     #------------Función para crear clientes----------------
