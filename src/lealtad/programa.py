@@ -204,7 +204,7 @@ class ProgramaLealtad:
         if cliente.saldo < premio.costo:
             raise ErroresBilletera(
                 codigo=saldoInsuficiente,
-                mensaje=f"Saldo insuficiente ({cliente.saldo}) para canjear '{premio.nombre}' (Costo: {premio.costo})."
+                mensaje=f"El saldo continúa siendo de ({cliente.saldo}) puntos."
             )
 
 
@@ -231,7 +231,7 @@ class ProgramaLealtad:
             "puntosDescontados": premio.costo,
             "saldo": cliente.saldo
         }
-
+    #-----Función para consultar el historial --------
     def consultarHistorial(self, idCliente: str) -> list[dict]:
         """Devuelve una copia del historial de movimientos del cliente."""
         cliente = self._obtenerCliente(idCliente)
@@ -279,6 +279,7 @@ class ProgramaLealtad:
             "nivel": nivelActual,
             "puntosAcumulados": pts,
             "puntosFaltantes": puntosFaltantes,
+            #Agregar para poder ver si siguiente nivel
         }
 
 
