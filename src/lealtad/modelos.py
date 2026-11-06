@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
+from datetime import date
 
 @dataclass
 class Cliente:
     idCliente: str
     nombre: str
     correo: str
-    fechaAlta: str
+    fechaAlta: date
     saldo: int = 0
     ptsAcumulados: int = 0
     
