@@ -265,17 +265,19 @@ class ProgramaLealtad:
 
         # 3. Determinar los puntos faltantes para el siguiente nivel
         if idxActual == 0:
-            # Es Oro (el nivel máximo)
+            # Es Oro ,el nivel máximo
             puntosFaltantes = None
+            siguienteNivel = None
         else:
             # El siguiente nivel es se encuentra arriba (la lista es de mayor a menor)
-            _, ptsSiguienteMinimo, _ = NIVELES[idxActual - 1]
+            siguienteNivel, ptsSiguienteMinimo, _ = NIVELES[idxActual - 1]
             puntosFaltantes = ptsSiguienteMinimo - pts
 
         return {
             "nivel": nivelActual,
             "puntosAcumulados": pts,
             "puntosFaltantes": puntosFaltantes,
+            "siguienteNivel": siguienteNivel
         }
 
 

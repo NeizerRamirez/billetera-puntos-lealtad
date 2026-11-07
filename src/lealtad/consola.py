@@ -68,7 +68,7 @@ def _consultarNivel(programa: ProgramaLealtad):
     nivelActual = programa.consultarNivel(idCliente)
 
     puntosFaltantes = (
-        f"{nivelActual['puntosFaltantes']} pts"
+        f"{nivelActual['puntosFaltantes']} puntos para el nivel {nivelActual['siguienteNivel']}"
         if nivelActual["puntosFaltantes"] is not None
         else "Se encuentra en el nivel maximo"
     )
@@ -77,7 +77,7 @@ def _consultarNivel(programa: ProgramaLealtad):
         f"> Cliente {idCliente} | "
         f"Nivel Actual: {nivelActual['nivel']} | "
         f"Puntos Acumulados: {nivelActual['puntosAcumulados']} | "
-        f"Puntos Faltantes Siguiente Nivel: {puntosFaltantes}"
+        f"Faltan: {puntosFaltantes}"
     )
 
 
