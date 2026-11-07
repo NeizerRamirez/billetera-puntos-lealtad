@@ -10,7 +10,7 @@ class ProgramaLealtad:
         
         self._clientes: dict[str, Cliente] = {}
 
-        #Se inicializa como none y luego tomará el valor del primer cliente
+        # Se inicializa como None y luego se actualizará con la fecha de cada operación
         self._ultimaFechaSistema: date | None = None
 
         # Carga del catálogo desde config.py
@@ -30,16 +30,16 @@ class ProgramaLealtad:
 
     #-------Funciones para validar los datos de entrada------
 
-    #Se valida que el texto no sea vacío ni tenga solo espacios en blanco
+    # Se valida que el texto no sea vacío ni tenga solo espacios en blanco
     def _textoValido(self, texto) -> bool:
         return isinstance(texto, str) and bool(texto.strip())
 
-    #función para validar el correo electrónico
+    # Función para validar el correo electrónico
     def _correoValido(self, correo) -> bool:
-        #Evalua que se reciba un string y posea un simbolo @
+        # Evalua que se reciba un string y contenga @
         if not isinstance(correo, str) or correo.count("@") != 1:
             return False
-        #Se comprueba que el correo tenga texto antes y después del @ y que el dominio tenga un punto
+        # Se comprueba que el correo tenga texto antes y después del @ y que el dominio tenga un punto
         antes, despues = correo.split("@")
         return bool(antes.strip()) and bool(despues.strip()) and "." in despues
 
@@ -48,7 +48,7 @@ class ProgramaLealtad:
             """Convierte DD-MM-AAAA a date y comprueba el orden cronológico.
             No modifica el estado."""
             try:
-                #Se verifica que la fecha tenga el formato correcto y se convierte a objeto date
+                # Se verifica que la fecha tenga el formato correcto y se convierte a objeto date
                 fecha = datetime.strptime(fechaStr, "%d-%m-%Y").date()
             except (ValueError, TypeError):
                 raise ErroresBilletera(codigo=fechaInvalida, mensaje="Formato de fecha inválido (DD-MM-AAAA)")
@@ -56,7 +56,8 @@ class ProgramaLealtad:
             if self._ultimaFechaSistema is not None and fecha < self._ultimaFechaSistema:
                 raise ErroresBilletera(codigo=fechaInvalida, mensaje="La fecha es anterior a la última operación")
             return fecha
-    
+
+    #----------Funciones de consulta de datos-------------------
     # Función para obtener un cliente por su Id
     def _obtenerCliente(self, idCliente: str) -> Cliente:
         """Devuelve el cliente registrado o lanza ErroresBilletera si no existe."""
@@ -67,15 +68,15 @@ class ProgramaLealtad:
             )
         return self._clientes[idCliente]
 
-    #Consulta de saldo del cliente
+    # Consulta de saldo del cliente
     def consultarSaldo(self, idCliente: str) -> int:
       return self._obtenerCliente(idCliente).saldo
 
-    #Consulta de catálogo 
+    # Consulta de catálogo 
 
     def consultarCatalogo(self) -> list[dict]:
         """Devuelve una lista con copias (diccionarios) de id, nombre y costo.
-        Protege el stock interno contra modificaciones accidentales externas al crear la copia.
+        Protege el premio interno contra modificaciones accidentales externas.
         """
         return [
             {
@@ -91,28 +92,27 @@ class ProgramaLealtad:
 
     # Función para validar el monto de la compra
     def _validarMonto(self, monto) -> Decimal:
-        #Se valida que el monto sea un número válido y no nulo
+        # Se valida que el monto sea un número válido y no nulo
         if monto is None or isinstance(monto, bool):
             raise ErroresBilletera(codigo=montoInvalido, mensaje="Monto inválido")
         try:
-            #Se convierte el monto a Decimal para evitar errores de redondeo
+            # Se convierte el monto a Decimal para evitar errores de redondeo
             valor = Decimal(str(monto).strip())
         except InvalidOperation:
             raise ErroresBilletera(codigo=montoInvalido, mensaje="El monto no es un número")
-        #Se valida que el monto no sea NaN y que sea positivo
+        # Se valida que el monto no sea NaN, que sea positivo y tenga solo 2 decimales
         if (not valor.is_finite() or valor <= 0 or valor.as_tuple().exponent < -2):
             raise ErroresBilletera(codigo=montoInvalido, mensaje="Monto no positivo o con más de 2 decimales")
         return valor
 
     def _nivelPara(self, puntosAcumulados: int) -> tuple[str, Decimal]:
-        """Recorre NIVELES (de mayor a menor) y retorna (nombre_nivel, multiplicador).#########################################################
-
+        """Recorre NIVELES (de mayor a menor) y retorna (nombre_nivel multiplicador)
         Como Bronce pide 0 puntos, siempre devolverá al menos Bronce.
         """
         for nombre, minimo, multiplicador in NIVELES:
             if puntosAcumulados >= minimo:
                 return nombre, multiplicador
-        #Se retorna como indices para no dar datos de la estructura
+        # Se retornan indices para no dar datos de la estructura del config
         return NIVELES[-1][0], NIVELES[-1][2]
 
     # Función para calcular los puntos ganados en una compra
@@ -121,17 +121,17 @@ class ProgramaLealtad:
         return math.floor(monto / puntosUnidad * multiplicador)
 
     
-    #Función para registar compras
+    # Función para registar compras
     def registrarCompra(
         self, idCliente: str, montoInput, fechaStr: str
     ) -> dict:
-        #Validar cliente 
+        # Validar cliente 
         cliente = self._obtenerCliente(idCliente)
 
-        #Validar monto
+        # Validar monto
         monto = self._validarMonto(montoInput)
 
-        #Validar fecha (orden cronológico sin alterar estado)
+        # Validar fecha (orden cronológico sin alterar estado)
         fecha = self._validarFecha(fechaStr)
 
         # Determinar nivel y multiplicador del cliente
@@ -140,7 +140,7 @@ class ProgramaLealtad:
         # Calcular puntos a otorgar aplicando el multiplicador
         puntosOtorgados = self._calcularPuntos(monto, multiplicador)
 
-        #Generar Id para la compra usando el contador actual
+        # Generar Id para la compra usando el contador actual
         idCompra = f"C-{self._contadorCompras + 1}"
 
         nuevaCompra = Compra(
@@ -151,9 +151,9 @@ class ProgramaLealtad:
             puntosOtorgados=puntosOtorgados,
         )
 
-        #En este punto todas las validaciones han pasado
+        # En este punto todas las validaciones han pasado
         
-        #Modificar estado del sistema
+        # Modificar estado del sistema
         cliente.saldo += puntosOtorgados
         cliente.puntosAcumulados += puntosOtorgados
 
@@ -179,10 +179,10 @@ class ProgramaLealtad:
     #------------Función para canjear premios----------------
     def canjearPremio(self, idCliente: str, idPremio: str, fechaStr: str) -> dict:
 
-        # Validar Cliente (lanza clienteNoExiste si no existe)
+        # Validar Cliente 
         cliente = self._obtenerCliente(idCliente)
 
-        # Validar Fecha (lanza fechaInvalida si la fecha es mala o anterior)
+        # Validar Fecha 
         fecha = self._validarFecha(fechaStr)
 
         # Validar Premio Inexistente
@@ -249,19 +249,16 @@ class ProgramaLealtad:
 
     #------------Funcion para consultar el nivel del cliente----------
     def consultarNivel(self, idCliente: str) -> dict:
-        """Devuelve un diccionario con el nivel actual, puntos acumulados
-
-        y los puntos que le faltan para el siguiente nivel.
-        Si ya es Oro, el campo 'puntosFaltantes' es None.
+        """Devuelve un diccionario con el nivel actual, puntos acumulados y los puntos que le faltan para el siguiente nivel.
         """
-        # 1. Obtener cliente (lanza clienteNoExiste si no está registrado)
+        # 1. Obtener cliente 
         cliente = self._obtenerCliente(idCliente)
         pts = cliente.puntosAcumulados
 
         # 2. Determinar el nivel actual y su posición en la lista NIVELES
         nivelActual, _ = self._nivelPara(pts)
 
-        # Buscar el índice del nivel actual en NIVELES
+        # Buscar el índice del nivel
         idxActual = next(
             i for i, (nombre, _, _) in enumerate(NIVELES) if nombre == nivelActual
         )
@@ -271,7 +268,7 @@ class ProgramaLealtad:
             # Es Oro (el nivel máximo)
             puntosFaltantes = None
         else:
-            # El siguiente nivel es la fila superior (índice anterior)
+            # El siguiente nivel es se encuentra arriba (la lista es de mayor a menor)
             _, ptsSiguienteMinimo, _ = NIVELES[idxActual - 1]
             puntosFaltantes = ptsSiguienteMinimo - pts
 
@@ -279,7 +276,6 @@ class ProgramaLealtad:
             "nivel": nivelActual,
             "puntosAcumulados": pts,
             "puntosFaltantes": puntosFaltantes,
-            #Agregar para poder ver si siguiente nivel
         }
 
 
@@ -295,10 +291,10 @@ class ProgramaLealtad:
             and self._correoValido(correo)):
             raise ErroresBilletera(codigo = datosInvalidos, mensaje = "Datos invalidos")
 
-        #Validar el formato de la fecha
+        #Validar el formato de la fecha y orden cronológico
         fecha = self._validarFecha(fechaAlta)
 
-        #Crear cliente y guardar en diccionario
+        #Crear cliente
         nuevoCliente = Cliente(
             idCliente=idCliente,
             nombre=nombre,

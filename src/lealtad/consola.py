@@ -27,7 +27,7 @@ def _registrarCompra(programa: ProgramaLealtad):
 
     compraActual = programa.registrarCompra(idCliente, monto, fecha)
 
-    # Obtenemos el saldo actual 
+    # Obtenemos el cliente actual
     cliente = programa._obtenerCliente(idCliente)
     print(
         f"> Compra {compraActual['idCompra']} registrada. "
@@ -123,7 +123,7 @@ def ejecutar():
         print("\n=== Bienvenido al Programa de Lealtad ===")
         for clave, (titulo, _) in OPCIONES.items():
             print(f"{clave}. {titulo}")
-        #Se pone el 0 en este nivel para no afectar la ejecución de las opciones
+        # El 0 se maneja de manera diferente, por eso se puso en este punto
         print("0. Salir")
 
         try:
@@ -145,7 +145,7 @@ def ejecutar():
         except (EOFError, KeyboardInterrupt):
             print("\nSaliendo.")
             break
-        except Exception as error:   # red de seguridad: el programa nunca debe cerrarse
+        except Exception as error:
             print(f"> Error inesperado ({type(error).__name__}): {error}")
 
 
