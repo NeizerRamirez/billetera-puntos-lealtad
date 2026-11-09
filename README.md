@@ -89,7 +89,7 @@ El documento con las capturas de las pruebas 1 a 5 está en `docs/evidencias/Pru
 
 ## Herramientas de apoyo
 
-Usé Claude (de Anthropic) como asistente y mentor durante el desarrollo: para entender el enunciado, planear las fases del trabajo, decidir la estructura de capas y revisar mi código y mis pruebas. Algunos fragmentos fueron sugeridos por el asistente y yo los adapté al proyecto («indica cuáles, por ejemplo la validación del monto con `Decimal` o el esqueleto del menú de la consola»). El resto del código, las pruebas y la ejecución manual de las pruebas de la sección 10 son trabajo mío.
+Usé Claude (de Anthropic) como asistente y mentor durante el desarrollo: para entender el enunciado, planear las fases del trabajo, decidir la estructura de capas y revisar mi código y mis pruebas. Algunos fragmentos fueron sugeridos por el asistente y yo los adapté al proyecto. El resto del código, las pruebas y la ejecución manual de las pruebas de la sección 10 son trabajo mío.
 
 Prompt usado: 
 
